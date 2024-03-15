@@ -12,6 +12,8 @@ cursor = conn.cursor()
 roles = ["Administrator", "Kladovshik", "Injener", "Testirovshik", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok",
  "Menedjer po zakupkam", "Rukovoditel otdela prodaj", "Menedjer po prodajam"]
 
+permitRoles = ["Administrator", "Kladovshik", "Injener", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok", "Menedjer po zakupkam"]
+
 
 def sanitizeInput(input):
     ##TODO: Sanitize input
@@ -27,6 +29,8 @@ def initializeDatabase():
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), password VARCHAR(255), role VARCHAR(255) NULL, last_login DATETIME, last_logout DATETIME, last_login_device VARCHAR(255) NULL)')
     cursor.execute('CREATE TABLE IF NOT EXISTS components (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), article VARCHAR(255), type VARCHAR(255), weight INT, production_date DATETIME)')
+    # sqlite3.OperationalError: incomplete input
+    # cursor.execute('CREATE TABLE IF NOT EXISTS robots (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), article VARCHAR(255), weight INT, condition VARCHAR(255), components VARCHAR(255)')
     conn.commit()
     return True
 
@@ -47,6 +51,12 @@ def registration(name, password):
 def hash_password(password):
     ##TODO: Hash a password
     return hashlib.sha256(password.encode()).hexdigest()
+
+def checkRole(user_id):
+    ##TODO: Check role of a user
+    cursor.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+    role = cursor.fetchone()[0]
+    return role
 
 
 def login(name, password, device):
@@ -72,8 +82,7 @@ def logout(user_id):
 
 def changeName(admin_id, target_user_id, new_name):
     #TODO: Change name of a user
-    check_role = cursor.execute('SELECT role FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
-    if check_role == 'Administrator':
+    if checkRole(admin_id) == 'Administrator':
         cursor.execute('UPDATE users SET name = ? WHERE id = ?', (new_name, target_user_id))
         conn.commit()
         return True
@@ -84,8 +93,7 @@ def changeName(admin_id, target_user_id, new_name):
 
 def changeRole(admin_id, target_user_id, role):
     #TODO: Change role of a user
-    check_role = cursor.execute('SELECT role FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
-    if check_role == 'Administrator':
+    if checkRole(admin_id) == 'Administrator':
         cursor.execute('UPDATE users SET role = ? WHERE id = ?', (role, target_user_id))
         conn.commit()
         return True
@@ -96,8 +104,7 @@ def changeRole(admin_id, target_user_id, role):
 
 def changePassword(admin_id, target_user_id, new_password):
     #TODO: Change password of a user
-    role = cursor.execute('SELECT role FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
-    if role == 'Administrator':
+    if checkRole(admin_id) == 'Administrator':
         cursor.execute('UPDATE users SET password = ? WHERE id = ?', (hash_password(new_password), target_user_id))
         conn.commit()
         return True
@@ -108,9 +115,7 @@ def changePassword(admin_id, target_user_id, new_password):
 
 def deleteUser(admin_id, target_user_id):
     #TODO: Delete a user
-    role = cursor.execute('SELECT role FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
-    target_user_role = cursor.execute('SELECT role FROM users WHERE id = ?', (target_user_id,)).fetchone()[0]
-    if role == 'Administrator' and target_user_role != 'Administrator':
+    if checkRole(admin_id) == 'Administrator' and checkRole(target_user_id) != 'Administrator':
         cursor.execute('DELETE FROM users WHERE id = ?', (target_user_id,))
         conn.commit()
         return True
@@ -121,13 +126,83 @@ def deleteUser(admin_id, target_user_id):
 
 def getUsers(admin_id):
     #TODO: Get all users
-    check_role = cursor.execute('SELECT role FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
-    if check_role == 'Administrator':
+    if checkRole(admin_id) == 'Administrator':
         cursor.execute('SELECT * FROM users')
         result = [list(i) for i in cursor.fetchall()]
         return result
     else:
         print('Only administrators can get users')
+        return False
+    
+    
+def getComponents(user_id):
+    #TODO: Get all components
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('SELECT * FROM components')
+        result = [list(i) for i in cursor.fetchall()]
+        return result
+    else:
+        print('Your role is not permitted to get components')
+        return False
+    
+def changeComponentName(user_id, component_id, new_name):
+    #TODO: Change name of a component
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('UPDATE components SET name = ? WHERE id = ?', (new_name, component_id))
+        conn.commit()
+        return True
+    else:
+        print('Your role is not permitted to change components')
+        return False
+
+def changeComponentArticle(user_id, component_id, new_article):
+    #TODO: Change article of a component
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('UPDATE components SET article = ? WHERE id = ?', (new_article, component_id))
+        conn.commit()
+        return True
+    else:
+        print('Your role is not permitted to change components')
+        return False
+    
+def changeComponentType(user_id, component_id, new_type):
+    #TODO: Change type of a component
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('UPDATE components SET type = ? WHERE id = ?', (new_type, component_id))
+        conn.commit()
+        return True
+    else:
+        print('Your role is not permitted to change components')
+        return False
+    
+def changeComponentWeight(user_id, component_id, new_weight):
+    #TODO: Change weight of a component
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('UPDATE components SET weight = ? WHERE id = ?', (new_weight, component_id))
+        conn.commit()
+        return True
+    else:
+        print('Your role is not permitted to change components')
+        return False
+    
+def changeComponentProductionDate(user_id, component_id, new_production_date):
+    #TODO: Change production date of a component
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('UPDATE components SET production_date = ? WHERE id = ?', (new_production_date, component_id))
+        conn.commit()
+        return True
+    else:
+        print('Your role is not permitted to change components')
+        return False
+    
+def getCerteinComponents(user_id, component_type):
+    #TODO: Get certain components
+    if checkRole(user_id) in permitRoles:
+        cursor.execute('SELECT * FROM components WHERE type = ?', (component_type,))
+        result = [list(i) for i in cursor.fetchall()]
+        return result
+    else:
+        print('Your role is not permitted to get certain components')
         return False
 
 
@@ -218,7 +293,7 @@ def changeWindow(win, users, selected, status):
 def main():
     ##TODO:
     #Main window for components
-    #Components redacting
+    #Components redacting BD DONE
     #Main window for robots
 
     #Create 1 user for every role
