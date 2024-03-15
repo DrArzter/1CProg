@@ -6,6 +6,8 @@ import os
 import sys
 import time
 import math as m
+import pandas as pd
+from openpyxl import load_workbook
 
 
 conn = sqlite3.connect('database.db')
@@ -13,7 +15,69 @@ cursor = conn.cursor()
 roles = ["Administrator", "Kladovshik", "Injener", "Testirovshik", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok",
  "Menedjer po zakupkam", "Rukovoditel otdela prodaj", "Menedjer po prodajam"]
 permitRoles = ["Administrator", "Kladovshik", "Injener", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok", "Menedjer po zakupkam"]
+    
 
+def excelToDB(path):
+    """
+    Reads an Excel file from the specified path and inserts its data into a database table.
+
+    Parameters:
+        path (str): The path to the Excel file.
+
+    Returns:
+        bool: True if the data was successfully inserted into the database, False otherwise.
+    """
+    #TODO: Read an Excel file and insert its data into a database table
+    #data = []
+    #with open(f"./18.xlsx", mode="rb") as f:
+    #    data.append(f.readlines())
+    #print(type(data[0][0].decode()))
+    #conn.execute('INSERT INTO components (name, article, weight, condition, components) VALUES (?, ?, ?, ?, ?)', data)
+    
+    #wb = p(path, engine='openpyxl', sheet_name=None, dtype = str)
+    #for sheet in wb:
+    #    wb[sheet].to_sql('components', conn, index=False, if_exists='replace')
+    #conn.commit()
+    #return True
+
+    wb = load_workbook(filename=path)
+    sheet = wb.active
+    cc = []
+    bb = []
+    skip = True
+    for row in sheet.iter_rows(values_only=True):
+        for i in range(5):
+            bb.append(str(list(row)[i]).replace("\n", ' '))
+        cc.append(bb)
+        print(bb)
+        if skip:
+            bb = []
+            continue
+            skip = False
+
+        insert_query = "INSERT INTO components (name, article, type, weight, out_date) VALUES (?, ?, ?, ?, ?)"
+        cursor.execute(insert_query, bb)
+        bb = []
+    conn.commit()
+ 
+ 
+def extractDBtoExcel(database, path):
+    """
+    Extracts data from a database table to an Excel file.
+
+    Parameters:
+        path (str): The path to the Excel file.
+
+    Returns:
+        bool: True if the data was successfully extracted to the Excel file, False otherwise.
+    """
+    #TODO: Extract data from a database table to an Excel file
+    try:
+        df = pd.read_sql(f'SELECT * FROM {database}', conn)
+        df.to_excel(path)
+        return True
+    except:
+        return False
 
 def sanitizeInput(input):
     """
@@ -27,10 +91,12 @@ def sanitizeInput(input):
     """
     ##TODO: Sanitize input
     forbiddenChars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|', ' ', '(', ')', '$', '%', '&', '卐']
+
     for char in input:
         if char in forbiddenChars:
             input = input.replace(char, '')
     return input
+    
     
 
 def initializeDatabase():
@@ -40,9 +106,8 @@ def initializeDatabase():
     ##TODO: Initialize the database
     cursor = conn.cursor()
     cursor.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), password VARCHAR(255), role VARCHAR(255) NULL, last_login DATETIME, last_logout DATETIME, last_login_device VARCHAR(255) NULL)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS components (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), article VARCHAR(255), type VARCHAR(255), weight INT, production_date DATETIME)')
-    # sqlite3.OperationalError: incomplete input
-    # cursor.execute('CREATE TABLE IF NOT EXISTS robots (id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(255), article VARCHAR(255), weight INT, condition VARCHAR(255), components VARCHAR(255)')
+    cursor.execute('CREATE TABLE IF NOT EXISTS components (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, article VARCHAR(255), type VARCHAR(255), weight REAL, out_date DATETIME)')
+
     conn.commit()
     return True
 
@@ -467,9 +532,13 @@ def changeWindow(win, users, selected, status):
     window.close()
 
 
-def partsWindow(status, users, select = 0):
-    print(select)
+def partsWindow(status, users, components, select = 0):
+    #cc = str(components[0][3]).encode(encoding="utf-16",errors="ignore")
+    #print(cc)
+    #print(cc.decode("utf-8", errors="ignore"))
+    #print(components)
     sg.theme('DarkAmber')
+
     layout = [
         [sg.Text('Part selector')],
         [sg.Combo(roles, font=('Arial Bold', 14),  expand_x=True, enable_events=True,  readonly=True, key='-COMBO-', default_value=roles[select])],
@@ -488,7 +557,7 @@ def partsWindow(status, users, select = 0):
     window.close()
 
 
-def robotsWindow(status, users):
+def robotsWindow(status, users, components):
     sg.theme('DarkAmber')
     layout = [
         [sg.Text('Select robot')],
@@ -558,7 +627,8 @@ def mainWindow(status, users):
     layout = [
         [sg.Button('Admin panel', visible= (status[3] == 'Administrator'))],
         [sg.Button('Component menu')],
-        [sg.Button('Robot menu')]
+        [sg.Button('Robot menu')],
+        [sg.Button('Update components')]
     ]
     window = sg.Window('Main window', layout, size=(500, 300), element_justification='c')
     while True:
@@ -566,11 +636,13 @@ def mainWindow(status, users):
         if event == sg.WIN_CLOSED or event == 'Exit':
             break
         if event == 'Component menu':
-            partsWindow(status, users)
+            partsWindow(status, users, getComponents(status[0]))
         if event == "Admin panel":
             adminWindow(status, users)
         if event == 'Robot menu':
-            robotsWindow(status, users)
+            robotsWindow(status, users, getComponents(status[0]))
+        if event == 'Update components':
+            excelToDB("./18.xlsx")
     window.close()
 
 
@@ -582,12 +654,12 @@ def main():
     #realise default choise for connect parts/connect robots windows
 
     #Create 1 user for every role
-
     initializeDatabase()
-    #status = authWindow()
-    #if status == None: return
-    cursor.execute('UPDATE users SET role = ? WHERE id = ?', ('Administrator', 1))
-    status = (1, 'DD22', '8fd09ae5ad4edca598b677252f0161a913f51ad65079e763a3ffdb1496c8886a', 'Administrator', '2024-03-15 17:59:05.574639', '2024-03-15 13:59:17', 'Draftvolder42')
+    status = authWindow()
+    if status == None: return
+    #cursor.execute('DROP TABLE IF EXISTS components')
+    #cursor.execute('UPDATE users SET role = ? WHERE name = ?', ('Administrator', 'arzter'))
+    #status = (1, 'DD22', '8fd09ae5ad4edca598b677252f0161a913f51ad65079e763a3ffdb1496c8886a', 'Administrator', '2024-03-15 17:59:05.574639', '2024-03-15 13:59:17', 'Draftvolder42')
     mainWindow(status, getUsers(status[0]))
 
     logout(status[0])
