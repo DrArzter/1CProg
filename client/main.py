@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 import datetime
 import os
+import sys
 import time
 import math as m
 
@@ -117,7 +118,7 @@ def login(name, password, device):
         return user
     else:
         print('Wrong name or password')
-        return False
+        return None
 
 
 def logout(user_id):
@@ -384,23 +385,24 @@ def getCerteinComponents(user_id, component_type):
 def authWindow():
     c = 0
     sg.theme('DarkAmber')
+    status = None
     layout = [
         [sg.Text('', key="-STATE-")],
         [sg.Text('Enter login')],[sg.InputText()],
         [sg.Text('Enter password')],[sg.InputText()],
-        [sg.Button('Login')],[sg.Button('Register')]
+        [sg.Button('Login'),sg.Button('Register')]
     ]
     window = sg.Window('Autorization window', layout)
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit': # if user closes window or clicks cancel
+        if event == sg.WIN_CLOSED or event == 'Exit':
             break
         if event == "Register":
             registration(sanitizeInput(values[0]), sanitizeInput(values[1]))
         if event == "Login":
             status = login(sanitizeInput(values[0]), sanitizeInput(values[1]), os.environ.get('USERNAME'))
-            if str(type(status)) == "<class 'bool'>":
-                if c <= 3:
+            if status == None:
+                if c <= 2:
                     window["-STATE-"].Update("Wrong login or password")
                     c += 1
                     timer = time.time()
@@ -409,7 +411,7 @@ def authWindow():
                     if time.time() - timer > 300:
                         c = 0
             else:
-                if c <= 3:
+                if c <= 2:
                     break
     window.close()
     return status
@@ -418,14 +420,14 @@ def authWindow():
 def adminWindow(status, users):
     sg.theme('DarkAmber')
     layout = [
-        [sg.Text(f'role: {status[3]}', key="-STATE-")],
+        [sg.Text('Administration panel')],
         [[sg.Button(f'Name: {users[i][1]}; Role: {users[i][3]}; Last login: {users[i][4]}; Last logout {users[i][5]}',
         size=(80, 2), key=f"-USER{i}-")] for i in range(len(users))]
     ]
     window = sg.Window('Automatization program', layout)
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit': # if user closes window or clicks cancel
+        if event == sg.WIN_CLOSED or event == 'Exit':
             break
         if "-USER" in event:
             changeWindow(window, users, int(event[5:][:-1]), status)
@@ -443,43 +445,155 @@ def changeWindow(win, users, selected, status):
     window = sg.Window('Change parameters', layout)
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit': # if user closes window or clicks cancel
+        if event == sg.WIN_CLOSED or event == 'Exit':
             break
         if event == 'Confirm changes':
             if (sanitizeInput(values[0]) != "") and (sanitizeInput(values[0]) != users[selected][1]):
-                changeName(status[0], users[selected][0], sanitizeInput(values[0]))
                 users[selected][1] = sanitizeInput(values[0])
+                changeName(status[0], users[selected][0], users[selected][1])
 
             if (values["-COMBO-"] != "") and (values["-COMBO-"] != users[selected][3]):
-                changeRole(status[0], users[selected][0], values["-COMBO-"])
                 users[selected][3] = values["-COMBO-"]
+                changeRole(status[0], users[selected][0], users[selected][3])
 
             if (sanitizeInput(values[1]) != ""):
                 changePassword(status[0], users[selected][0], sanitizeInput(values[1]))
-            win[f"-USER{selected}-"].Update(f'Name: {sanitizeInput(values[0])}; Role: {sanitizeInput(values["-COMBO-"])}; Last login: {users[selected][4]}; Last logout {users[selected][5]}')
-            return
+            win[f"-USER{selected}-"].Update(f'Name: {users[selected][1]}; Role: {users[selected][3]}; Last login: {users[selected][4]}; Last logout {users[selected][5]}')
+            break
         if event == 'Delete user':
             deleteUser(status[0], users[selected][0])
             win[f"-USER{selected}-"].Update(visible=False)
-            return
+            break
+    window.close()
+
+
+def partsWindow(status, users, select = 0):
+    print(select)
+    sg.theme('DarkAmber')
+    layout = [
+        [sg.Text('Part selector')],
+        [sg.Combo(roles, font=('Arial Bold', 14),  expand_x=True, enable_events=True,  readonly=True, key='-COMBO-', default_value=roles[select])],
+        [sg.Text('Name: None'), sg.Push(),sg.Text('Art: None')],
+        [sg.Text('Type: None'), sg.Push(), sg.Text('Weight: None')],
+        [sg.Text('Out date: None')],
+        [sg.Button('Change info')]
+    ]
+    window = sg.Window('Component menu', layout, element_justification='c')
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Exit':
+            break
+        if event == "Change info":
+            changePartWindow(window)
+    window.close()
+
+
+def robotsWindow(status, users):
+    sg.theme('DarkAmber')
+    layout = [
+        [sg.Text('Select robot')],
+        [sg.Combo(roles, font=('Arial Bold', 14),  expand_x=True, enable_events=True,  readonly=True, key='-COMBO-')],
+        [sg.Text('Name: None'), sg.Push(),sg.Text('Art: None')],
+        [sg.Text('Weight: None'), sg.Push(),sg.Text('Status: None')],
+        [sg.Text('Components')], [[sg.Button(f'{roles[i]}',size=(10, 1), key=f"-ITEM{i}-")] for i in range(len(roles))],
+        [sg.Button('Change info')]
+    ]
+    window = sg.Window('Robots menu', layout, element_justification='c')
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Exit':
+            break
+        if "-ITEM" in event:
+            partsWindow(status, users, int(event[5:][:-1]))
+        if event == "Change info":
+            changeRobotWindow(window)
+    window.close()
+
+
+def changePartWindow(win):
+    sg.theme('DarkAmber')
+    iS = (20, 1)
+    layout = [
+        [sg.Text('Name: '), sg.InputText('', key="-NAME-", size=iS), sg.Push(),sg.Text('Art: '), sg.InputText('', key="-ART-", size=iS)],
+        [sg.Text('Type:  '), sg.InputText('', key="-TYPE-", size=iS), sg.Push(), sg.Text('Weight: '), sg.InputText('', key="-WEIGHT-", size=iS)],
+        [sg.Text('Out date: '), sg.InputText('', key="-DATE-", size=iS)],
+        [sg.Button('Change info'), sg.Button('Discard changes'), sg.Button('Add new')]
+    ]
+    window = sg.Window('Component change', layout)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Exit': 
+            break
+        if event == "Change info":
+            pass
+        if event == "Discard changes":
+            break
+    window.close()
+
+
+def changeRobotWindow(win):
+    sg.theme('DarkAmber')
+    iS = (20, 1)
+    layout = [
+        [sg.Text('Name: '), sg.InputText('', key="-NAME-", size=iS), sg.Push(),sg.Text('Art: '), sg.InputText('', key="-ART-", size=iS)],
+        [sg.Text('Weight:  '), sg.InputText('', key="-Weight-", size=iS), sg.Push(), sg.Text('Status: '), sg.InputText('', key="-Status-", size=iS)],
+        [sg.Text('Components: ')], [sg.Combo(roles, font=('Arial Bold', 14),  expand_x=True, enable_events=True,  readonly=True, key='-COMBO-')],
+        [sg.Button('Add component'), sg.Button('Delete component')],
+        [sg.Button('Change info'), sg.Button('Discard changes'), sg.Button('Add new')]
+    ]
+    window = sg.Window('Component change', layout)
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Exit': 
+            break
+        if event == "Change info":
+            pass
+        if event == "Discard changes":
+            break
+    window.close()
+
+
+def mainWindow(status, users):
+    sg.theme('DarkAmber')
+    layout = [
+        [sg.Button('Admin panel', visible= (status[3] == 'Administrator'))],
+        [sg.Button('Component menu')],
+        [sg.Button('Robot menu')]
+    ]
+    window = sg.Window('Main window', layout, size=(500, 300), element_justification='c')
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Exit':
+            break
+        if event == 'Component menu':
+            partsWindow(status, users)
+        if event == "Admin panel":
+            adminWindow(status, users)
+        if event == 'Robot menu':
+            robotsWindow(status, users)
     window.close()
 
 
 def main():
     ##TODO:
-    #Main window for components
-    #Components redacting BD DONE
-    #Main window for robots
+    #Create component list (Parse Excel)
+    #connect parts window with db
+    #connect robots window with db
+    #realise default choise for connect parts/connect robots windows
 
     #Create 1 user for every role
 
     initializeDatabase()
-    status = authWindow()
+    #status = authWindow()
+    #if status == None: return
     cursor.execute('UPDATE users SET role = ? WHERE id = ?', ('Administrator', 1))
-    adminWindow(status, getUsers(status[0]))
-    logout(status[0])
-    conn.close()    
+    status = (1, 'DD22', '8fd09ae5ad4edca598b677252f0161a913f51ad65079e763a3ffdb1496c8886a', 'Administrator', '2024-03-15 17:59:05.574639', '2024-03-15 13:59:17', 'Draftvolder42')
+    mainWindow(status, getUsers(status[0]))
 
+    logout(status[0])
+    conn.close()
+    print("exit")
+    sys.exit()
 
 if __name__ == "__main__":
     main()
