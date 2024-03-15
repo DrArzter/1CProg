@@ -11,7 +11,6 @@ conn = sqlite3.connect('database.db')
 cursor = conn.cursor()
 roles = ["Administrator", "Kladovshik", "Injener", "Testirovshik", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok",
  "Menedjer po zakupkam", "Rukovoditel otdela prodaj", "Menedjer po prodajam"]
-
 permitRoles = ["Administrator", "Kladovshik", "Injener", "Rukovoditel proizvodstva", "Rukovoditel otdela zakupok", "Menedjer po zakupkam"]
 
 
@@ -51,6 +50,7 @@ def registration(name, password):
 def hash_password(password):
     ##TODO: Hash a password
     return hashlib.sha256(password.encode()).hexdigest()
+
 
 def checkRole(user_id):
     ##TODO: Check role of a user
@@ -145,6 +145,7 @@ def getComponents(user_id):
         print('Your role is not permitted to get components')
         return False
     
+    
 def changeComponentName(user_id, component_id, new_name):
     #TODO: Change name of a component
     if checkRole(user_id) in permitRoles:
@@ -154,6 +155,7 @@ def changeComponentName(user_id, component_id, new_name):
     else:
         print('Your role is not permitted to change components')
         return False
+
 
 def changeComponentArticle(user_id, component_id, new_article):
     #TODO: Change article of a component
@@ -165,6 +167,7 @@ def changeComponentArticle(user_id, component_id, new_article):
         print('Your role is not permitted to change components')
         return False
     
+    
 def changeComponentType(user_id, component_id, new_type):
     #TODO: Change type of a component
     if checkRole(user_id) in permitRoles:
@@ -174,6 +177,7 @@ def changeComponentType(user_id, component_id, new_type):
     else:
         print('Your role is not permitted to change components')
         return False
+    
     
 def changeComponentWeight(user_id, component_id, new_weight):
     #TODO: Change weight of a component
@@ -185,6 +189,7 @@ def changeComponentWeight(user_id, component_id, new_weight):
         print('Your role is not permitted to change components')
         return False
     
+    
 def changeComponentProductionDate(user_id, component_id, new_production_date):
     #TODO: Change production date of a component
     if checkRole(user_id) in permitRoles:
@@ -194,6 +199,7 @@ def changeComponentProductionDate(user_id, component_id, new_production_date):
     else:
         print('Your role is not permitted to change components')
         return False
+    
     
 def getCerteinComponents(user_id, component_type):
     #TODO: Get certain components
@@ -300,6 +306,7 @@ def main():
 
     initializeDatabase()
     status = authWindow()
+    cursor.execute('UPDATE users SET role = ? WHERE id = ?', ('Administrator', 1))
     adminWindow(status, getUsers(status[0]))
     logout(status[0])
     conn.close()    
